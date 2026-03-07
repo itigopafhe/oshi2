@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Archive Ultimate v34</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Noto+Sans+JP:wght@400;700&display=swap');
+        body { background-color: #fffafb; font-family: 'Inter', 'Noto Sans JP', sans-serif; color: #4a4a4a; overflow-x: hidden; }
+        .card-shadow { box-shadow: 0 12px 30px -5px rgba(244, 114, 182, 0.12); }
+        .tab-active { color: #f472b6; border-bottom: 3px solid #f472b6; font-weight: bold; }
+        #detail-view { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 100; overflow-y: auto; transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        #detail-view.open { transform: translateY(0); }
+        .auto-expand-input { width: 100%; border: 1px solid transparent; padding: 10px; background: transparent; border-radius: 8px; resize: none; overflow: hidden; }
+        .auto-expand-input:focus { background: #fff5f7; border-color: #fce7f3; outline: none; }
+        
+        /* 復活：Note用スペース */
+        .memo-outer { margin: 40px -32px 0 -32px; padding: 60px 32px; background-color: #fffafb; border-top: 1px solid #fce7f3; min-height: 600px; }
+        .ribbon-label { background: linear-gradient(to right, #f472b6, #fb923c); color: white; font-weight: 700; letter-spacing: 0.1em; border-radius: 4px 14px 14px 4px; box-shadow: 0 4px 12px rgba(244, 114, 182, 0.3); z-index: 20; position: absolute; left: 0; pointer-events: none; }
+        .no-img-accent { border-left: 4px solid #fbcfe8; background: linear-gradient(to right, #fff5f7, transparent); padding: 8px 14px; border-radius: 0 10px 10px 0; margin-bottom: 6px; }
+        .toggle-btn { padding: 4px 10px; border-radius: 99px; font-size: 8px; font-weight: bold; text-transform: uppercase; transition: 0.2s; }
+        .toggle-on { background: #f472b6; color: white; }
+        .toggle-off { background: #f3f4f6; color: #9ca3af; }
+
+        /* レイアウトUI：突き出し修正 */
+        .grid-list { grid-template-columns: 1fr; }
+        .grid-normal { grid-template-columns: repeat(2, 1fr); }
+        .grid-compact { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+        .layout-btn { width: 38px; height: 38px; display: flex; items-center; justify-center; border-radius: 10px; color: #d1d5db; transition: 0.2s; }
+        .layout-btn.active { background: #fff1f2; color: #f472b6; }
+        
+        /* クロップ・画像管理 */
+        .crop-viewport { position: relative; width: 100%; height: 260px; background: #222; border-radius: 2.5rem; overflow: hidden; touch-action: none; cursor: move; }
+        .crop-img-entity { position: absolute; pointer-events: none; user-select: none; transform-origin: center center; width: 100%; height: 100%; }
+        .crop-overlay { position: absolute; inset: 0; pointer-events: none; border: 2px solid #f472b6; border-radius: 2.5rem; box-shadow: 0 0 0 1000px rgba(0,0,0,0.5); }
+        .img-mode-tab { padding: 6px 14px; font-size: 9px; font-weight: 800; border-radius: 99px; }
+        .img-mode-active { background: #f472b6; color: white; }
+
+        .btn-shuffle { background: white; color: #f472b6; border: 1px solid #fce7f3; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; border-radius: 14px; transition: 0.2s; }
+        @keyframes dice-shake { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-15deg); } 75% { transform: rotate(15deg); } }
+        .dice-anim { animation: dice-shake 0.4s ease-in-out; }
+    </style>
+</head>
+<body class="pb-24">
+
+    <div class="w-full h-44 bg-pink-200 flex items-center justify-center relative overflow-hidden">
+        <div class="absolute inset-0 bg-cover bg-center opacity-40" style="background-image: url('https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&q=80&w=1000');"></div>
+        <div class="absolute top-6 right-6 flex gap-4 z-20">
+            <button onclick="createShareLink()" class="text-[10px] font-extrabold text-pink-600 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm">SHARE</button>
+            <button onclick="exportStandalone()" class="text-[10px] font-extrabold text-pink-600 bg-white/90 px-3 py-1.5 rounded-lg shadow-sm">SITE</button>
+        </div>
+        <h1 class="relative text-2xl font-bold text-white tracking-[0.4em] uppercase drop-shadow-md">Archive</h1>
+    </div>
+
+    <div class="max-w-2xl mx-auto px-6 mt-6">
+        <div class="flex flex-wrap items-center gap-2 mb-4">
+            <input type="text" id="search-bar" oninput="render()" placeholder="検索..." class="bg-white border-none h-11 rounded-2xl shadow-sm flex-1 px-5 text-sm outline-none min-w-[120px]">
+            <button onclick="randomPickAnimated(this)" class="btn-shuffle card-shadow">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4" stroke-width="2.5"></rect><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"></circle><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"></circle><circle cx="12" cy="12" r="1.2" fill="currentColor"></circle><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"></circle><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"></circle></svg>
+            </button>
+            <div class="flex items-center bg-white rounded-2xl shadow-sm p-1 gap-0.5">
+                <button onclick="setLayout('list')" id="btn-layout-list" class="layout-btn"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg></button>
+                <button onclick="setLayout('normal')" id="btn-layout-normal" class="layout-btn"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 6h6v6H4zM14 6h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path></svg></button>
+                <button onclick="setLayout('compact')" id="btn-layout-compact" class="layout-btn"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-width="2" d="M4 4h4v4H4zM10 4h4v4h-4zM16 4h4v4h-4zM4 10h4v4H4zM10 10h4v4h-4zM16 10h4v4h-4z"></path></svg></button>
+            </div>
+        </div>
+        <div id="filter-tags" class="flex flex-wrap gap-1.5 mb-2"></div>
+    </div>
+
+    <div class="flex justify-center bg-white/90 backdrop-blur-md sticky top-0 z-30 border-b border-pink-50 mb-8 overflow-x-auto whitespace-nowrap px-4">
+        <button onclick="switchTab('works')" id="tab-works" class="px-4 py-4 text-[9px] tracking-widest uppercase">Works<span id="count-works" class="ml-1 text-pink-300"></span></button>
+        <button onclick="switchTab('chars')" id="tab-chars" class="px-4 py-4 text-[9px] tracking-widest uppercase">Characters<span id="count-chars" class="ml-1 text-pink-300"></span></button>
+        <button onclick="switchTab('combi')" id="tab-combi" class="px-4 py-4 text-[9px] tracking-widest uppercase">Combi<span id="count-combi" class="ml-1 text-pink-300"></span></button>
+        <button onclick="switchTab('couplings')" id="tab-couplings" class="px-4 py-4 text-[9px] tracking-widest uppercase">CP<span id="count-couplings" class="ml-1 text-pink-300"></span></button>
+    </div>
+
+    <main class="max-w-2xl mx-auto px-4"><div id="content-area" class="grid gap-4"></div></main>
+
+    <div id="detail-view">
+        <div class="sticky top-0 p-6 z-[150] flex justify-between items-center bg-white/80 backdrop-blur-md">
+            <button onclick="closeDetail()" class="text-pink-400 font-bold text-[10px] tracking-widest uppercase">← CLOSE</button>
+            <div class="flex items-center gap-4">
+                <div id="auto-save-status" class="text-[9px] text-gray-300 font-bold uppercase tracking-widest">Saved</div>
+                <button id="header-delete-btn" class="text-red-500 font-extrabold text-[10px] bg-red-50 px-3 py-1.5 rounded-lg shadow-sm">DELETE</button>
+            </div>
+        </div>
+        <div id="detail-content" class="max-w-3xl mx-auto px-8 pb-10"></div>
+    </div>
+
+    <div class="fixed bottom-6 right-6 flex flex-col gap-4 z-40">
+        <button onclick="openSettings()" class="w-12 h-12 bg-white text-pink-400 rounded-full shadow-lg flex items-center justify-center text-xl border border-pink-100">⚙</button>
+        <button onclick="openEntryModal()" class="w-16 h-16 btn-pink rounded-full shadow-2xl flex items-center justify-center text-3xl font-light">+</button>
+    </div>
+
+    <div id="toast" class="fixed top-10 left-1/2 -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full text-[10px] font-bold tracking-[0.2em] opacity-0 transition-opacity z-[200] uppercase">Success</div>
+
+    <datalist id="datalist-works"></datalist>
+    <datalist id="datalist-chars"></datalist>
+
+    <script>
+        const defaultSchemas = {
+            works: [{ id: 'name', label: '作品名', type: 'text', visible: true, isTitle: true }, { id: 'media', label: 'メディア', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
+            chars: [{ id: 'name', label: '名前', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
+            combi: [{ id: 'name', label: 'コンビ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品名', type: 'text', visible: true }, { id: 'char1', label: 'キャラ1', type: 'text', visible: true }, { id: 'char2', label: 'キャラ2', type: 'text', visible: true }, { id: 'char3', label: 'キャラ3', type: 'text', visible: true }, { id: 'period', label: 'ハマった時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
+            couplings: [{ id: 'members', label: 'メンバー(コンマ区切り)', type: 'text', visible: true }, { id: 'sep', label: '繋ぎ文字(x, &, ・)', type: 'text', visible: true }, { id: 'name', label: 'カプ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }]
+        };
+
+        let state = { currentTab: 'works', layoutMode: localStorage.getItem('archive_layout') || 'normal', schemas: JSON.parse(localStorage.getItem('archive_schemas')) || defaultSchemas, data: JSON.parse(localStorage.getItem('archive_data')) || {works:[], chars:[], combi:[], couplings:[]}, activeTag: null, imgViewMode: 'edited' };
+
+        const compressImage = (f) => new Promise(r => { const rd = new FileReader(); rd.readAsDataURL(f); rd.onload = (e) => { const img = new Image(); img.src = e.target.result; img.onload = () => { const canvas = document.createElement('canvas'); let w = img.width, h = img.height, max = 1200; if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } } canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h); r(canvas.toDataURL('image/jpeg', 0.8)); }; }; });
+
+        function setLayout(m) { state.layoutMode = m; localStorage.setItem('archive_layout', m); document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active')); const target = document.getElementById(`btn-layout-${m}`); if(target) target.classList.add('active'); render(); }
+
+        function render() {
+            const container = document.getElementById('content-area');
+            container.className = `grid gap-4 grid-${state.layoutMode}`;
+            const search = (document.getElementById('search-bar')?.value || '').toLowerCase();
+            const schema = state.schemas[state.currentTab];
+            const items = state.data[state.currentTab];
+            container.innerHTML = '';
+            Object.keys(state.data).forEach(t => { if(document.getElementById(`count-${t}`)) document.getElementById(`count-${t}`).innerText = state.data[t].length; });
+
+            items.forEach((item, idx) => {
+                if (search && !JSON.stringify(item).toLowerCase().includes(search)) return;
+                const tagField = schema.find(f => f.type === 'tags');
+                if (state.activeTag && !(item[tagField?.id] || '').split(',').map(t => t.trim()).includes(state.activeTag)) return;
+
+                let fieldsHtml = ''; let titleHtml = ''; let headerHtml = ''; let ribbonHtml = ''; let groupHtml = '';
+                const imgField = schema.find(f => f.type === 'file');
+                const imgVal = item[imgField.id];
+                const getVis = (fid) => item.visConfig?.[fid] ?? (schema.find(s=>s.id===fid)?.visible ?? false);
+
+                if (imgField.visible && imgVal) {
+                    const hClass = state.layoutMode === 'compact' ? 'h-28' : (state.layoutMode === 'normal' ? 'h-44' : 'h-80');
+                    if (imgVal.includes('x.com') || imgVal.includes('twitter.com')) {
+                        headerHtml = `<div class="w-full ${hClass} bg-pink-50 flex items-center justify-center border-b border-pink-100 uppercase text-[8px] font-bold text-pink-400">View X</div>`;
+                    } else {
+                        const tx = item.tx ?? 0, ty = item.ty ?? 0, ts = item.ts ?? 1;
+                        const isDef = (tx === 0 && ty === 0 && ts === 1);
+                        headerHtml = `<div class="w-full ${hClass} overflow-hidden border-b border-pink-50 relative"><img src="${imgVal}" class="absolute w-full h-full ${isDef?'object-cover':'object-contain'}" style="transform: translate(${tx}%, ${ty}%) scale(${ts});"></div>`;
+                    }
+                    if (item.ribbonId !== 'none') {
+                        const rField = schema.find(f => f.id === (item.ribbonId || schema.find(s=>s.isTitle).id));
+                        if (rField && item[rField.id]) ribbonHtml = `<div class="ribbon-label uppercase ${state.layoutMode==='compact'?'text-[7px] top-[10px] py-[2px] px-[10px]':'text-[9px] top-[15px] py-[4px] px-[14px]'}">${item[rField.id]}</div>`;
+                    }
+                }
+
+                if (state.currentTab === 'combi') {
+                    const charFields = schema.filter(f => f.id.startsWith('char'));
+                    const members = charFields.map(f => item[f.id]).filter(v => v);
+                    if (members.length > 0) {
+                        groupHtml = `<div class="col-span-2 space-y-0.5 mb-2 pl-3 border-l-2 border-pink-100">
+                            ${members.map(m => `<div class="font-bold text-gray-700 ${state.layoutMode==='compact'?'text-[9px]':'text-[13px]'} flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-pink-200 rounded-full"></span>${m}</div>`).join('')}
+                        </div>`;
+                    }
+                }
+
+                schema.forEach(field => {
+                    if (state.currentTab === 'combi' && field.id.startsWith('char')) return;
+                    if (!getVis(field.id) || !item[field.id] || field.isAccordion || field.type === 'url' || field.type === 'file') return;
+                    if (field.isTitle) titleHtml = `<h2 class="${state.layoutMode==='compact'?'text-[11px]':'text-sm'} font-bold text-gray-800 truncate">${item[field.id]}</h2>`;
+                    else {
+                        const isMain = field.id === 'work' || field.label.includes('作品');
+                        if (state.layoutMode === 'compact' && !isMain) return;
+                        fieldsHtml += `<div class="${isMain ? 'no-img-accent col-span-2' : 'mb-0.5'}">${isMain ? '' : `<label class="text-[6px] text-gray-300 uppercase font-bold tracking-widest block">${field.label}</label>`}<span class="${isMain ? 'text-[10px] text-gray-700 font-bold' : 'text-[8px] text-gray-600 font-medium'}">${item[field.id]}</span></div>`;
+                    }
+                });
+
+                const card = document.createElement('div');
+                card.className = `bg-white ${state.layoutMode==='compact'?'rounded-[1rem]':'rounded-[1.5rem]'} overflow-hidden card-shadow border border-pink-50 relative active:scale-[0.98] transition-all`;
+                card.draggable = true;
+                card.innerHTML = `${ribbonHtml}${headerHtml}<div class="${state.layoutMode==='compact'?'p-2':'p-4'}">${titleHtml ? `<div class="mb-2">${titleHtml}</div>` : ''}<div class="grid grid-cols-2 gap-x-2 gap-y-0.5 items-end">${groupHtml}${fieldsHtml}</div></div>`;
+                
+                card.onclick = () => openDetail(idx);
+                card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); card.style.opacity = '0.4'; });
+                card.addEventListener('dragend', () => card.style.opacity = '1');
+                card.addEventListener('dragover', (e) => e.preventDefault());
+                card.addEventListener('drop', (e) => { e.preventDefault(); const f = parseInt(e.dataTransfer.getData('text/plain')); const l = state.data[state.currentTab]; const it = l.splice(f, 1)[0]; l.splice(idx, 0, it); saveState(); render(); });
+                container.appendChild(card);
+            });
+            updateDatalists(); renderTagFilters();
+        }
+
+        function openDetail(index) {
+            const item = state.data[state.currentTab][index];
+            const schema = state.schemas[state.currentTab];
+            const content = document.getElementById('detail-content');
+            const imgId = schema.find(f => f.type === 'file').id;
+
+            // 画像セクション（ボタン位置を修正）
+            let imgHtml = `<div class="mb-10 p-4 bg-gray-50 rounded-[2.5rem] border border-pink-50 relative">
+                <div class="flex justify-between items-center mb-4 px-2">
+                    <div class="flex gap-1">
+                        <button onclick="state.imgViewMode='edited'; openDetail(${index})" class="img-mode-tab ${state.imgViewMode==='edited'?'img-mode-active':'bg-white text-gray-300'}">EDITED</button>
+                        <button onclick="state.imgViewMode='original'; openDetail(${index})" class="img-mode-tab ${state.imgViewMode==='original'?'img-mode-active':'bg-white text-gray-300'}">ORIGINAL</button>
+                    </div>
+                    <div class="flex gap-2">
+                        <label class="bg-white text-pink-500 text-[8px] font-black px-3 py-1.5 rounded-full cursor-pointer shadow-sm border border-pink-100">CHANGE<input type="file" onchange="updateDetailImage(${index}, this)" class="hidden"></label>
+                        <button onclick="updateDetailField(${index}, '${imgId}', ''); openDetail(${index}); event.stopPropagation();" class="bg-red-500 text-white text-[8px] font-black px-3 py-1.5 rounded-full shadow-sm">REMOVE</button>
+                    </div>
+                </div>`;
+            
+            if (item[imgId]) {
+                if (state.imgViewMode === 'edited') {
+                    imgHtml += `<div class="crop-viewport shadow-inner" id="crop-area"><img id="crop-img" src="${item[imgId]}" class="crop-img-entity" style="transform: translate(${item.tx || 0}%, ${item.ty || 0}%) scale(${item.ts || 1}); object-fit: contain;"><div class="crop-overlay"></div></div>
+                    <div class="mt-6 px-6"><input type="range" min="1" max="6" step="0.05" value="${item.ts || 1}" oninput="updateZoom(${index}, this.value)" class="w-full"></div>`;
+                } else {
+                    imgHtml += `<div class="min-h-[260px] flex items-center justify-center bg-white rounded-[2rem] overflow-hidden shadow-inner"><img src="${item[imgId]}" class="max-w-full max-h-[60vh] object-contain"></div>`;
+                }
+            } else {
+                imgHtml += `<div class="h-48 flex items-center justify-center border-2 border-dashed border-pink-100 rounded-[2rem] bg-white relative"><input type="file" onchange="updateDetailImage(${index}, this)" class="absolute inset-0 opacity-0 cursor-pointer"><span class="text-pink-300 font-bold uppercase text-[10px]">Add Photo</span></div>`;
+            }
+            imgHtml += `</div>`;
+
+            let fieldsHtml = `<div class="mb-10 p-4 bg-gray-100/40 rounded-2xl border border-gray-100"><label class="text-[9px] text-gray-400 font-bold block mb-2 uppercase">URL</label><input type="text" value="${item[imgId]?.startsWith('http')?item[imgId]:''}" onchange="updateDetailField(${index}, '${imgId}', this.value); openDetail(${index})" class="w-full bg-white text-xs p-2 rounded-lg outline-none"></div>`;
+
+            let noteHtml = '';
+            schema.forEach((field, i) => {
+                if (field.type === 'file') return;
+                const isVisible = item.visConfig?.[field.id] ?? field.visible;
+                const dl = (field.id === 'work' || field.label.includes('作品')) ? 'list="datalist-works"' : ((field.label.includes('キャラ') || field.label.includes('名前') || field.label.includes('メンバー')) ? 'list="datalist-chars"' : '');
+                
+                if (field.isAccordion) { 
+                    noteHtml = `<div class="memo-outer"><label class="text-[11px] text-pink-300 font-extrabold uppercase tracking-[0.5em] block mb-12 text-center">— Note —</label><textarea oninput="updateDetailField(${index}, '${field.id}', this.value); autoGrow(this)" class="auto-expand-input leading-loose text-gray-600 text-base min-h-[600px]">${item[field.id] || ''}</textarea></div>`;
+                } else {
+                    fieldsHtml += `<div class="flex items-start py-4 border-b border-gray-50 group gap-2">
+                        <div class="flex flex-col gap-1"><button onclick="moveFieldItem(${index}, ${i}, -1)" class="text-[11px] text-pink-300 font-black">▲</button><button onclick="moveFieldItem(${index}, ${i}, 1)" class="text-[11px] text-pink-300 font-black">▼</button></div>
+                        <button onclick="toggleCardVis(${i}, ${index})" class="toggle-btn flex-shrink-0 mt-2 ${isVisible ? 'toggle-on' : 'toggle-off'}">${isVisible ? 'ON' : 'OFF'}</button>
+                        <label class="w-20 text-[9px] text-gray-300 font-bold uppercase tracking-widest pt-2.5 flex-shrink-0">${field.label}</label>
+                        <textarea ${dl} oninput="updateDetailField(${index}, '${field.id}', this.value); autoGrow(this)" class="auto-expand-input ${field.isTitle ? 'text-2xl font-bold' : 'text-sm text-gray-600'} flex-1" rows="1">${item[field.id] || ''}</textarea>
+                        <button onclick="if(confirm('Delete?')){state.schemas[state.currentTab].splice(${i},1);saveState();openDetail(${index})}" class="text-gray-200 px-2 mt-2">×</button>
+                    </div>`;
+                }
+            });
+
+            const addCharBtn = (state.currentTab === 'combi') ? `<div class="py-4 text-center"><button onclick="addCharacterField(${index})" class="bg-gray-50 text-gray-400 text-[10px] font-bold px-5 py-2 rounded-xl border border-gray-100">+ キャラクターを追加</button></div>` : '';
+            content.innerHTML = imgHtml + fieldsHtml + addCharBtn + `<div class="py-6 flex justify-center"><button onclick="addDetailField(${index})" class="text-[10px] text-pink-300 font-bold uppercase tracking-widest">+ Add Field</button></div>` + noteHtml;
+            document.querySelectorAll('textarea').forEach(t => autoGrow(t));
+            if(state.imgViewMode === 'edited') initProfessionalDrag(index);
+            document.getElementById('detail-view').classList.add('open');
+            document.body.style.overflow = 'hidden';
+        }
+
+        // --- ロジック ---
+        function addCharacterField(idx) { const s = state.schemas[state.currentTab]; const next = s.filter(f => f.id.startsWith('char')).length + 1; s.splice(s.length - 4, 0, { id: `char${next}`, label: `キャラ${next}`, type: 'text', visible: true }); saveState(); openDetail(idx); }
+        function moveFieldItem(entryIdx, fieldIdx, dir) { const s = state.schemas[state.currentTab]; if (fieldIdx + dir < 0 || fieldIdx + dir >= s.length) return; [s[fieldIdx], s[fieldIdx + dir]] = [s[fieldIdx + dir], s[fieldIdx]]; saveState(); openDetail(entryIdx); render(); }
+        function initProfessionalDrag(idx) { const area = document.getElementById('crop-area'); const img = document.getElementById('crop-img'); if(!area || !img) return; let isDragging = false, sx, sy; let tx = state.data[state.currentTab][idx].tx || 0, ty = state.data[state.currentTab][idx].ty || 0; const s = (e) => { isDragging = true; const p = e.touches ? e.touches[0] : e; sx = p.clientX; sy = p.clientY; }; const m = (e) => { if(!isDragging) return; const p = e.touches ? e.touches[0] : e; tx += (p.clientX - sx) / area.offsetWidth * 100; ty += (p.clientY - sy) / area.offsetHeight * 100; img.style.transform = `translate(${tx}%, ${ty}%) scale(${state.data[state.currentTab][idx].ts || 1})`; sx = p.clientX; sy = p.clientY; }; const ed = () => { if(isDragging) { isDragging = false; updateDetailField(idx, 'tx', tx); updateDetailField(idx, 'ty', ty); } }; area.addEventListener('mousedown', s); area.addEventListener('touchstart', s); window.addEventListener('mousemove', m); window.addEventListener('touchmove', m, {passive: false}); window.addEventListener('mouseup', ed); window.addEventListener('touchend', ed); }
+        function updateZoom(idx, val) { state.data[state.currentTab][idx].ts = parseFloat(val); const img = document.getElementById('crop-img'); if(img) { img.style.objectFit = val == 1 ? 'cover' : 'contain'; img.style.transform = `translate(${state.data[state.currentTab][idx].tx || 0}%, ${state.data[state.currentTab][idx].ty || 0}%) scale(${val})`; } saveState(); }
+        function saveState() { localStorage.setItem('archive_data', JSON.stringify(state.data)); localStorage.setItem('archive_schemas', JSON.stringify(state.schemas)); }
+        function switchTab(t) { state.currentTab = t; document.querySelectorAll('button[id^="tab-"]').forEach(b => b.classList.remove('tab-active')); document.getElementById(`tab-${t}`).classList.add('tab-active'); render(); }
+        function closeDetail() { document.getElementById('detail-view').classList.remove('open'); document.body.style.overflow = ''; render(); }
+        function updateDetailField(idx, id, val) { state.data[state.currentTab][idx][id] = val; saveState(); if(document.getElementById('auto-save-status')){document.getElementById('auto-save-status').innerText = 'Saving...'; setTimeout(() => {if(document.getElementById('auto-save-status'))document.getElementById('auto-save-status').innerText = 'Saved';}, 800);}}
+        async function updateDetailImage(idx, input) { if (input.files[0]) { const b64 = await compressImage(input.files[0]); updateDetailField(idx, state.schemas[state.currentTab].find(f => f.type === 'file').id, b64); openDetail(idx); } }
+        function randomPickAnimated(btn) { btn.classList.add('dice-anim'); setTimeout(() => { btn.classList.remove('dice-anim'); openDetail(Math.floor(Math.random() * state.data[state.currentTab].length)); }, 400); }
+        function toggleCardVis(fIdx, eIdx) { const fId = state.schemas[state.currentTab][fIdx].id; const entry = state.data[state.currentTab][eIdx]; if(!entry.visConfig) entry.visConfig = {}; entry.visConfig[fId] = !(entry.visConfig[fId] ?? state.schemas[state.currentTab][fIdx].visible); saveState(); openDetail(eIdx); render(); }
+        function autoGrow(el) { el.style.height = "5px"; el.style.height = (el.scrollHeight) + "px"; }
+        function exportStandalone() { let h = document.documentElement.outerHTML; const d = `<script>window.PRELOADED_DATA = ${JSON.stringify(state.data)}; window.PRELOADED_SCHEMAS = ${JSON.stringify(state.schemas)};<\/script>`; h = h.replace('</head>', d + '</head>'); const b = new Blob([h], {type: 'text/html'}); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'Archive.html'; a.click(); }
+        async function createShareLink() { showToast('Creating link...'); try { const res = await fetch('https://api.jsonstorage.net/v1/json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: state.data, schemas: state.schemas }) }); if(!res.ok) throw new Error(); const r = await res.json(); const shareUrl = `${window.location.origin}${window.location.pathname}?id=${r.uri.split('/').pop()}`; await navigator.clipboard.writeText(shareUrl); alert("URL Copied!"); } catch (e) { alert("Error sharing."); } }
+        function openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); renderSettingsFields(); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function addDetailField(idx) { state.schemas[state.currentTab].push({ id: 'c'+Date.now(), label: '新項目', type: 'text', visible: true }); openDetail(idx); }
+        function renderSettingsFields() { const c = document.getElementById('settings-fields'); c.innerHTML = ''; state.schemas[state.currentTab].forEach((f, i) => { c.innerHTML += `<div class="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-2xl"><div class="flex flex-col gap-1"><button onclick="moveFieldSettings(${i}, -1)" class="text-[12px] text-pink-400 font-bold px-1">▲</button><button onclick="moveFieldSettings(${i}, 1)" class="text-[12px] text-pink-400 font-bold px-1">▼</button></div><input type="text" value="${f.label}" onchange="state.schemas[state.currentTab][${i}].label=this.value" class="text-xs p-2 flex-1 bg-white border-none rounded-lg"><button onclick="state.schemas[state.currentTab][${i}].visible=!state.schemas[state.currentTab][${i}].visible;renderSettingsFields()" class="toggle-btn ${f.visible?'toggle-on':'toggle-off'}">${f.visible?'ON':'OFF'}</button>${f.isTitle ? '' : `<button onclick="if(confirm('Delete?')){state.schemas[state.currentTab].splice(${i},1);renderSettingsFields()}" class="text-gray-300 font-bold px-2">×</button>`}</div>`; }); }
+        function moveFieldSettings(i, dir) { const s = state.schemas[state.currentTab]; if (i + dir < 0 || i + dir >= s.length) return; [s[i], s[i + dir]] = [s[i + dir], s[i]]; saveState(); renderSettingsFields(); render(); }
+        function updateDatalists() { const wSet = new Set(), cSet = new Set(); Object.values(state.data).flat().forEach(d => { if(d.name) {if(state.data.works.includes(d)) wSet.add(d.name); else cSet.add(d.name);} if(d.work) wSet.add(d.work); if(d.members) d.members.split(',').forEach(m => cSet.add(m.trim())); }); document.getElementById('datalist-works').innerHTML = [...wSet].map(w => `<option value="${w}">`).join(''); document.getElementById('datalist-chars').innerHTML = [...cSet].map(c => `<option value="${c}">`).join(''); }
+        function renderTagFilters() { const tagSet = new Set(); const tf = state.schemas[state.currentTab].find(f => f.type === 'tags'); state.data[state.currentTab].forEach(item => { if (tf && item[tf.id]) item[tf.id].split(',').forEach(t => tagSet.add(t.trim())); }); const fc = document.getElementById('filter-tags'); fc.innerHTML = `<span onclick="state.activeTag=null;render()" class="tag-chip ${!state.activeTag ? 'bg-pink-400 text-white' : 'bg-gray-100 text-gray-400'}">すべて</span>`; tagSet.forEach(tag => fc.innerHTML += `<span onclick="state.activeTag='${tag}';render()" class="tag-chip ${state.activeTag===tag?'bg-pink-400 text-white':'bg-white text-pink-400'}">${tag}</span>`); }
+        function showToast(m) { const t = document.getElementById('toast'); if(t) { t.innerText = m; t.style.opacity = '1'; setTimeout(() => t.style.opacity = '0', 2000); } }
+
+        window.addEventListener('load', async () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('id')) { try { const res = await fetch(`https://api.jsonstorage.net/v1/json/${params.get('id')}`); const s = await res.json(); state.data = s.data; state.schemas = s.schemas; } catch (e) {} }
+            setLayout(state.layoutMode);
+        });
+
+        function openEntryModal() {
+            const m = document.createElement('div'); m.className = "fixed inset-0 bg-black/40 flex items-center justify-center z-[130] p-4 backdrop-blur-md"; m.id = "new-entry-modal";
+            let f = state.schemas[state.currentTab].map(s => {
+                if(s.type === 'file') return `<div><label class="text-[9px] text-gray-400 font-bold uppercase">${s.label}</label><input type="file" id="new-${s.id}" class="text-xs block mb-2"><input type="text" id="new-url-${s.id}" placeholder="URL" class="w-full border-pink-100 border p-3 rounded-xl text-[11px] mb-4 outline-none"></div>`;
+                if(s.type === 'date') return `<div><label class="text-[9px] text-gray-400 font-bold uppercase">${s.label}</label><input type="date" id="new-${s.id}" class="w-full border-pink-100 border p-3 rounded-xl text-sm mb-4 outline-none"></div>`;
+                const dl = (s.id === 'work' || s.label.includes('作品')) ? 'list="datalist-works"' : ((s.label.includes('キャラ') || s.label.includes('名前') || s.label.includes('メンバー')) ? 'list="datalist-chars"' : '');
+                return `<input type="text" id="new-${s.id}" ${dl} placeholder="${s.label}" class="w-full border-pink-100 border p-3 rounded-xl text-sm mb-4 outline-none">`;
+            }).join('');
+            const addCharBtn = (state.currentTab === 'combi') ? `<div class="py-2 text-center"><button onclick="addCharacterSchemaModal()" class="text-pink-300 text-[9px] font-bold">+ キャラクターを追加</button></div>` : '';
+            m.innerHTML = `<div class="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl max-h-[90vh] overflow-y-auto"><h2 class="text-xl font-bold mb-6 text-pink-500 uppercase tracking-widest text-center">New</h2><div class="space-y-1">${f}</div>${addCharBtn}<button onclick="saveEntryAction()" class="w-full btn-pink py-4 rounded-2xl font-bold mt-8 uppercase tracking-widest text-sm shadow-xl shadow-pink-100">Save</button><button onclick="this.closest('#new-entry-modal').remove()" class="w-full text-gray-300 text-[10px] font-bold mt-4 uppercase tracking-widest text-center">Cancel</button></div>`;
+            document.body.appendChild(m);
+        }
+        function addCharacterSchemaModal() { const s = state.schemas.combi; const n = s.filter(f => f.id.startsWith('char')).length + 1; s.splice(s.length - 4, 0, { id: `char${n}`, label: `キャラ${n}`, type: 'text', visible: true }); document.getElementById('new-entry-modal').remove(); openEntryModal(); }
+        async function saveEntryAction() {
+            const item = { visConfig: {} };
+            for(const f of state.schemas[state.currentTab]) {
+                const el = document.getElementById(`new-${f.id}`); if(!el) continue;
+                if(f.type === 'file') { const u = document.getElementById(`new-url-${f.id}`).value; item[f.id] = u || (el.files[0] ? await compressImage(el.files[0]) : ''); } 
+                else item[f.id] = el.value || '';
+            }
+            state.data[state.currentTab].push(item); saveState(); render(); document.getElementById('new-entry-modal').remove();
+        }
+    </script>
+
+    <div id="settings-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[140] p-4 backdrop-blur-md">
+        <div class="bg-white w-full max-w-lg rounded-[2.5rem] p-8 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <h2 class="text-xl font-bold mb-6 text-pink-500 uppercase tracking-widest text-center">Settings</h2>
+            <div id="settings-fields"></div>
+            <button onclick="state.schemas[state.currentTab].push({ id: 'c'+Date.now(), label: '新項目', type: 'text', visible: true }); renderSettingsFields();" class="text-[11px] font-bold text-pink-300 mt-8 block uppercase tracking-widest mx-auto">+ Add New Field</button>
+            <div class="flex gap-4 mt-10 pt-6 border-t border-pink-50">
+                <button onclick="saveState(); closeModal('settings-modal'); render();" class="flex-1 btn-pink py-4 rounded-2xl font-bold uppercase tracking-widest text-sm shadow-xl shadow-pink-100">Apply</button>
+                <button onclick="closeModal('settings-modal')" class="px-6 py-4 text-gray-400 text-xs uppercase tracking-widest">Close</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
