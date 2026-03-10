@@ -139,106 +139,104 @@
 
         function setLayout(m) { state.layoutMode = m; localStorage.setItem('archive_layout', m); document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active')); const target = document.getElementById(`btn-layout-${m}`); if(target) target.classList.add('active'); render(); }
 
-        function render() {
-            const container = document.getElementById('content-area');
-            container.className = `grid gap-4 grid-${state.layoutMode}`;
-            const search = (document.getElementById('search-bar')?.value || '').toLowerCase();
-            const schema = state.schemas[state.currentTab];
-            const items = state.data[state.currentTab];
-            container.innerHTML = '';
-            Object.keys(state.data).forEach(t => { if(document.getElementById(`count-${t}`)) document.getElementById(`count-${t}`).innerText = state.data[t].length; });
+function render() {
+    const container = document.getElementById('content-area');
+    container.className = `grid gap-4 grid-${state.layoutMode}`;
+    const search = (document.getElementById('search-bar')?.value || '').toLowerCase();
+    const schema = state.schemas[state.currentTab];
+    const items = state.data[state.currentTab];
+    container.innerHTML = '';
+    
+    // タブのカウント更新
+    Object.keys(state.data).forEach(t => { 
+        if(document.getElementById(`count-${t}`)) document.getElementById(`count-${t}`).innerText = state.data[t].length; 
+    });
 
-            items.forEach((item, idx) => {
-                if (search && !JSON.stringify(item).toLowerCase().includes(search)) return;
-                const tagField = schema.find(f => f.type === 'tags');
-                if (state.activeTag && !(item[tagField?.id] || '').split(',').map(t => t.trim()).includes(state.activeTag)) return;
+    items.forEach((item, idx) => {
+        // 検索とタグのフィルタリング
+        if (search && !JSON.stringify(item).toLowerCase().includes(search)) return;
+        const tagField = schema.find(f => f.type === 'tags');
+        if (state.activeTag && !(item[tagField?.id] || '').split(',').map(t => t.trim()).includes(state.activeTag)) return;
 
-                let fieldsHtml = ''; let titleHtml = ''; let headerHtml = ''; let ribbonHtml = ''; let groupHtml = '';
-                const imgField = schema.find(f => f.type === 'file');
-                const imgVal = item[imgField.id];
-                const getVis = (fid) => item.visConfig?.[fid] ?? (schema.find(s=>s.id===fid)?.visible ?? false);
+        let fieldsHtml = ''; let titleHtml = ''; let headerHtml = ''; let ribbonHtml = ''; let groupHtml = '';
+        const imgField = schema.find(f => f.type === 'file');
+        const imgVal = item[imgField.id];
+        const getVis = (fid) => item.visConfig?.[fid] ?? (schema.find(s=>s.id===fid)?.visible ?? false);
 
-                if (imgField.visible && imgVal) {
-                    const hClass = state.layoutMode === 'compact' ? 'h-28' : (state.layoutMode === 'normal' ? 'h-44' : 'h-80');
-                    if (imgVal.includes('x.com') || imgVal.includes('twitter.com')) {
-                        headerHtml = `<div class="w-full ${hClass} bg-pink-50 flex items-center justify-center border-b border-pink-100 uppercase text-[8px] font-bold text-pink-400">View X</div>`;
-                    } else {
-                        const tx = item.tx ?? 0, ty = item.ty ?? 0, ts = item.ts ?? 1;
-                        const isDef = (tx === 0 && ty === 0 && ts === 1);
-                        headerHtml = `<div class="w-full ${hClass} overflow-hidden border-b border-pink-50 relative"><img src="${imgVal}" class="absolute w-full h-full ${isDef?'object-cover':'object-contain'}" style="transform: translate(${tx}%, ${ty}%) scale(${ts});"></div>`;
-                    }
-const titleField = schema.find(s => s.isTitle); // タイトルに設定されている項目を探す
-const targetFieldId = item.ribbonId === undefined ? (titleField ? titleField.id : null) : (item.ribbonId === 'none' ? null : item.ribbonId);
-
-     // titleHtmlを生成している場所（143行目付近）
-if (field.isTitle) {
-    const isCP = state.currentTab === 'couplings';
-    titleHtml = `
-        <div class="flex items-center gap-2">
-            ${isCP ? '<span class="text-[10px] bg-pink-500 text-white px-1.5 py-0.5 rounded-md font-black">CP</span>' : ''}
-            <h2 class="${state.layoutMode==='compact'?'text-[11px]':'text-base'} font-extrabold text-gray-800 truncate">${item[field.id]}</h2>
-        </div>
-    `;
-}
-               
-if (targetFieldId) {
-    const rField = schema.find(f => f.id === targetFieldId);
-    if (rField && item[rField.id]) {
-        const sizeClass = state.layoutMode === 'compact' ? 'text-[7px] top-[10px] py-[2px] px-[10px]' : 'text-[9px] top-[15px] py-[4px] px-[14px]';
-        ribbonHtml = `<div class="ribbon-label uppercase ${sizeClass}">${item[rField.id]}</div>`;
-    }
-}
-
+        // --- 1. 画像とリボンの処理 ---
+        if (imgField.visible && imgVal) {
+            const hClass = state.layoutMode === 'compact' ? 'h-28' : (state.layoutMode === 'normal' ? 'h-44' : 'h-80');
+            if (imgVal.includes('x.com') || imgVal.includes('twitter.com')) {
+                headerHtml = `<div class="w-full ${hClass} bg-pink-50 flex items-center justify-center border-b border-pink-100 uppercase text-[8px] font-bold text-pink-400">View X</div>`;
+            } else {
+                const tx = item.tx ?? 0, ty = item.ty ?? 0, ts = item.ts ?? 1;
+                const isDef = (tx === 0 && ty === 0 && ts === 1);
+                headerHtml = `<div class="w-full ${hClass} overflow-hidden border-b border-pink-50 relative"><img src="${imgVal}" class="absolute w-full h-full ${isDef?'object-cover':'object-contain'}" style="transform: translate(${tx}%, ${ty}%) scale(${ts});"></div>`;
+            }
+            
+            // リボンに表示する項目を決定
+            const titleField = schema.find(s => s.isTitle);
+            const targetFieldId = item.ribbonId === undefined ? (titleField ? titleField.id : null) : (item.ribbonId === 'none' ? null : item.ribbonId);
+            if (targetFieldId) {
+                const rField = schema.find(f => f.id === targetFieldId);
+                if (rField && item[rField.id]) {
+                    const sizeClass = state.layoutMode === 'compact' ? 'text-[7px] top-[10px] py-[2px] px-[10px]' : 'text-[9px] top-[15px] py-[4px] px-[14px]';
+                    ribbonHtml = `<div class="ribbon-label uppercase ${sizeClass}">${item[rField.id]}</div>`;
                 }
-
-                if (state.currentTab === 'combi') {
-                    const charFields = schema.filter(f => f.id.startsWith('char'));
-                    const members = charFields.map(f => item[f.id]).filter(v => v);
-                    if (members.length > 0) {
-                        groupHtml = `<div class="col-span-2 space-y-0.5 mb-2 pl-3 border-l-2 border-pink-100">
-                            ${members.map(m => `<div class="font-bold text-gray-700 ${state.layoutMode==='compact'?'text-[9px]':'text-[13px]'} flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-pink-200 rounded-full"></span>${m}</div>`).join('')}
-                        </div>`;
-                    }
-                }
-                else if (state.currentTab === 'couplings') {
-    const members = (item.members || '').split(',').map(m => m.trim());
-    const sep = item.sep || '×';
-    if (members.length >= 2) {
-        groupHtml = `
-            <div class="col-span-2 cp-bridge shadow-sm">
-                <div class="cp-name-unit">${members[0]}</div>
-                <div class="cp-sep-unit">${sep}</div>
-                <div class="cp-name-unit">${members[1]}</div>
-            </div>
-        `;
-    }
-}
-
-                schema.forEach(field => {
-                    if (state.currentTab === 'combi' && field.id.startsWith('char')) return;
-                    if (!getVis(field.id) || !item[field.id] || field.isAccordion || field.type === 'url' || field.type === 'file') return;
-                    if (field.isTitle) titleHtml = `<h2 class="${state.layoutMode==='compact'?'text-[11px]':'text-sm'} font-bold text-gray-800 truncate">${item[field.id]}</h2>`;
-                    else {
-                        const isMain = field.id === 'work' || field.label.includes('作品');
-                        if (state.layoutMode === 'compact' && !isMain) return;
-                        fieldsHtml += `<div class="${isMain ? 'no-img-accent col-span-2' : 'mb-0.5'}">${isMain ? '' : `<label class="text-[6px] text-gray-300 uppercase font-bold tracking-widest block">${field.label}</label>`}<span class="${isMain ? 'text-[10px] text-gray-700 font-bold' : 'text-[8px] text-gray-600 font-medium'}">${item[field.id]}</span></div>`;
-                    }
-                });
-
-                const card = document.createElement('div');
-                card.className = `bg-white ${state.layoutMode==='compact'?'rounded-[1rem]':'rounded-[1.5rem]'} overflow-hidden card-shadow border border-pink-50 relative active:scale-[0.98] transition-all`;
-                card.draggable = true;
-                card.innerHTML = `${ribbonHtml}${headerHtml}<div class="${state.layoutMode==='compact'?'p-2':'p-4'}">${titleHtml ? `<div class="mb-2">${titleHtml}</div>` : ''}<div class="grid grid-cols-2 gap-x-2 gap-y-0.5 items-end">${groupHtml}${fieldsHtml}</div></div>`;
-                
-                card.onclick = () => openDetail(idx);
-                card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); card.style.opacity = '0.4'; });
-                card.addEventListener('dragend', () => card.style.opacity = '1');
-                card.addEventListener('dragover', (e) => e.preventDefault());
-                card.addEventListener('drop', (e) => { e.preventDefault(); const f = parseInt(e.dataTransfer.getData('text/plain')); const l = state.data[state.currentTab]; const it = l.splice(f, 1)[0]; l.splice(idx, 0, it); saveState(); render(); });
-                container.appendChild(card);
-            });
-            updateDatalists(); renderTagFilters();
+            }
         }
+
+        // --- 2. 特殊レイアウト（Combi / CPブリッジ） ---
+        if (state.currentTab === 'combi') {
+            const charFields = schema.filter(f => f.id.startsWith('char'));
+            const members = charFields.map(f => item[f.id]).filter(v => v);
+            if (members.length > 0) {
+                groupHtml = `<div class="col-span-2 space-y-0.5 mb-2 pl-3 border-l-2 border-pink-100">${members.map(m => `<div class="font-bold text-gray-700 ${state.layoutMode==='compact'?'text-[9px]':'text-[13px]'} flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-pink-200 rounded-full"></span>${m}</div>`).join('')}</div>`;
+            }
+        } else if (state.currentTab === 'couplings') {
+            const members = (item.members || '').split(',').map(m => m.trim());
+            const sep = item.sep || '×';
+            if (members.length >= 2) {
+                groupHtml = `<div class="col-span-2 cp-bridge shadow-sm"><div class="cp-name-unit">${members[0]}</div><div class="cp-sep-unit">${sep}</div><div class="cp-name-unit">${members[1]}</div></div>`;
+            }
+        }
+
+        // --- 3. 各項目の表示ループ ---
+        schema.forEach(field => {
+            if (state.currentTab === 'combi' && field.id.startsWith('char')) return;
+            if (!getVis(field.id) || !item[field.id] || field.isAccordion || field.type === 'url' || field.type === 'file') return;
+            
+            if (field.isTitle) {
+                const isCP = state.currentTab === 'couplings';
+                titleHtml = `
+                    <div class="flex items-center gap-2 mb-2">
+                        ${isCP ? '<span class="text-[9px] bg-pink-500 text-white px-1.5 py-0.5 rounded-md font-black tracking-tighter shadow-sm">CP</span>' : ''}
+                        <h2 class="${state.layoutMode==='compact'?'text-[11px]':'text-sm'} font-bold text-gray-800 truncate">${item[field.id]}</h2>
+                    </div>
+                `;
+            } else {
+                const isMain = field.id === 'work' || field.label.includes('作品');
+                if (state.layoutMode === 'compact' && !isMain) return;
+                fieldsHtml += `<div class="${isMain ? 'no-img-accent col-span-2' : 'mb-0.5'}">${isMain ? '' : `<label class="text-[6px] text-gray-300 uppercase font-bold tracking-widest block">${field.label}</label>`}<span class="${isMain ? 'text-[10px] text-gray-700 font-bold' : 'text-[8px] text-gray-600 font-medium'}">${item[field.id]}</span></div>`;
+            }
+        });
+
+        // --- 4. カードの組み立て ---
+        const card = document.createElement('div');
+        card.className = `bg-white ${state.layoutMode==='compact'?'rounded-[1rem]':'rounded-[1.5rem]'} overflow-hidden card-shadow border border-pink-50 relative active:scale-[0.98] transition-all`;
+        card.draggable = true;
+        card.innerHTML = `${ribbonHtml}${headerHtml}<div class="${state.layoutMode==='compact'?'p-2':'p-4'}">${titleHtml}<div class="grid grid-cols-2 gap-x-2 gap-y-0.5 items-end">${groupHtml}${fieldsHtml}</div></div>`;
+        
+        card.onclick = () => openDetail(idx);
+        card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', idx); card.style.opacity = '0.4'; });
+        card.addEventListener('dragend', () => card.style.opacity = '1');
+        card.addEventListener('dragover', (e) => e.preventDefault());
+        card.addEventListener('drop', (e) => { e.preventDefault(); const f = parseInt(e.dataTransfer.getData('text/plain')); const l = state.data[state.currentTab]; const it = l.splice(f, 1)[0]; l.splice(idx, 0, it); saveState(); render(); });
+        container.appendChild(card);
+    });
+    updateDatalists(); renderTagFilters();
+}
+
 
         function openDetail(index) {
             const item = state.data[state.currentTab][index];
