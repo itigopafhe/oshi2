@@ -29,7 +29,33 @@
         .grid-compact { grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
         .layout-btn { width: 38px; height: 38px; display: flex; items-center; justify-center; border-radius: 10px; color: #d1d5db; transition: 0.2s; }
         .layout-btn.active { background: #fff1f2; color: #f472b6; }
-        
+
+        /* CP（カップリング）用の装飾 */
+.cp-bridge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: linear-gradient(to right, #fff5f7, #fef2f2);
+    border-radius: 16px;
+    border: 1px dashed #fbcfe8;
+}
+.cp-name-unit {
+    font-size: 14px;
+    font-weight: 800;
+    color: #4a4a4a;
+    letter-spacing: 0.05em;
+}
+.cp-sep-unit {
+    font-size: 12px;
+    font-weight: 900;
+    color: #f472b6;
+    text-transform: uppercase;
+    font-style: italic;
+}
+
         /* クロップ・画像管理 */
         .crop-viewport { position: relative; width: 100%; height: 260px; background: #222; border-radius: 2.5rem; overflow: hidden; touch-action: none; cursor: move; }
         .crop-img-entity { position: absolute; pointer-events: none; user-select: none; transform-origin: center center; width: 100%; height: 100%; }
@@ -144,6 +170,17 @@
 const titleField = schema.find(s => s.isTitle); // タイトルに設定されている項目を探す
 const targetFieldId = item.ribbonId === undefined ? (titleField ? titleField.id : null) : (item.ribbonId === 'none' ? null : item.ribbonId);
 
+     // titleHtmlを生成している場所（143行目付近）
+if (field.isTitle) {
+    const isCP = state.currentTab === 'couplings';
+    titleHtml = `
+        <div class="flex items-center gap-2">
+            ${isCP ? '<span class="text-[10px] bg-pink-500 text-white px-1.5 py-0.5 rounded-md font-black">CP</span>' : ''}
+            <h2 class="${state.layoutMode==='compact'?'text-[11px]':'text-base'} font-extrabold text-gray-800 truncate">${item[field.id]}</h2>
+        </div>
+    `;
+}
+               
 if (targetFieldId) {
     const rField = schema.find(f => f.id === targetFieldId);
     if (rField && item[rField.id]) {
@@ -163,6 +200,19 @@ if (targetFieldId) {
                         </div>`;
                     }
                 }
+                else if (state.currentTab === 'couplings') {
+    const members = (item.members || '').split(',').map(m => m.trim());
+    const sep = item.sep || '×';
+    if (members.length >= 2) {
+        groupHtml = `
+            <div class="col-span-2 cp-bridge shadow-sm">
+                <div class="cp-name-unit">${members[0]}</div>
+                <div class="cp-sep-unit">${sep}</div>
+                <div class="cp-name-unit">${members[1]}</div>
+            </div>
+        `;
+    }
+}
 
                 schema.forEach(field => {
                     if (state.currentTab === 'combi' && field.id.startsWith('char')) return;
