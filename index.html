@@ -43,10 +43,11 @@
     border: 1px dashed #fbcfe8;
 }
 .cp-name-unit {
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 800;
     color: #4a4a4a;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 .cp-sep-unit {
     font-size: 12px;
@@ -129,7 +130,8 @@
             works: [{ id: 'name', label: '作品名', type: 'text', visible: true, isTitle: true }, { id: 'media', label: 'メディア', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
             chars: [{ id: 'name', label: '名前', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
             combi: [{ id: 'name', label: 'コンビ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品名', type: 'text', visible: true }, { id: 'char1', label: 'キャラ1', type: 'text', visible: true }, { id: 'char2', label: 'キャラ2', type: 'text', visible: true }, { id: 'char3', label: 'キャラ3', type: 'text', visible: true }, { id: 'period', label: 'ハマった時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }],
-            couplings: [{ id: 'members', label: 'メンバー(コンマ区切り)', type: 'text', visible: true }, { id: 'sep', label: '繋ぎ文字(x, &, ・)', type: 'text', visible: true }, { id: 'name', label: 'カプ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }]
+            couplings: [   { id: 'char1', label: 'キャラ1', type: 'text', visible: true }, 
+    { id: 'char2', label: 'キャラ2', type: 'text', visible: true },  { id: 'sep', label: '繋ぎ文字(x, &, ・)', type: 'text', visible: true }, { id: 'name', label: 'カプ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }]
         };
 
         let state = { currentTab: 'works', layoutMode: localStorage.getItem('archive_layout') || 'normal', schemas: JSON.parse(localStorage.getItem('archive_schemas')) || defaultSchemas, data: JSON.parse(localStorage.getItem('archive_data')) || {works:[], chars:[], combi:[], couplings:[]}, activeTag: null, imgViewMode: 'edited' }
@@ -193,17 +195,28 @@ function render() {
             if (members.length > 0) {
                 groupHtml = `<div class="col-span-2 space-y-0.5 mb-2 pl-3 border-l-2 border-pink-100">${members.map(m => `<div class="font-bold text-gray-700 ${state.layoutMode==='compact'?'text-[9px]':'text-[13px]'} flex items-center gap-1.5"><span class="w-1.5 h-1.5 bg-pink-200 rounded-full"></span>${m}</div>`).join('')}</div>`;
             }
-        } else if (state.currentTab === 'couplings') {
-            const members = (item.members || '').split(',').map(m => m.trim());
-            const sep = item.sep || '×';
-            if (members.length >= 2) {
-                groupHtml = `<div class="col-span-2 cp-bridge shadow-sm"><div class="cp-name-unit">${members[0]}</div><div class="cp-sep-unit">${sep}</div><div class="cp-name-unit">${members[1]}</div></div>`;
-            }
-        }
+        }else if (state.currentTab === 'couplings') {
+    const c1 = item.char1 || '';
+    const c2 = item.char2 || '';
+    const sep = item.sep || '×';
+    if (c1 || c2) {
+        groupHtml = `
+            <div class="col-span-2 cp-bridge shadow-sm">
+                <div class="cp-name-unit">${c1}</div>
+                <div class="cp-sep-unit">${sep}</div>
+                <div class="cp-name-unit">${c2}</div>
+            </div>
+        `;
+    }
+}
 
         // --- 3. 各項目の表示ループ ---
         schema.forEach(field => {
             if (state.currentTab === 'combi' && field.id.startsWith('char')) return;
+　　　　　　　　if (state.currentTab === 'couplings' && (field.id === 'char1' || field.id === 'char2' || field.id === 'sep')) return;
+    
+    if (!getVis(field.id) || !item[field.id] || field.isAccordion || field.type === 'url' || field.type === 'file') return;
+
             if (!getVis(field.id) || !item[field.id] || field.isAccordion || field.type === 'url' || field.type === 'file') return;
             
             if (field.isTitle) {
