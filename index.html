@@ -106,7 +106,8 @@
             couplings: [{ id: 'members', label: 'メンバー(コンマ区切り)', type: 'text', visible: true }, { id: 'sep', label: '繋ぎ文字(x, &, ・)', type: 'text', visible: true }, { id: 'name', label: 'カプ名', type: 'text', visible: true, isTitle: true }, { id: 'work', label: '作品', type: 'text', visible: true }, { id: 'period', label: '時期', type: 'date', visible: true }, { id: 'img', label: '画像', type: 'file', visible: true }, { id: 'memo', label: 'Note', type: 'textarea', visible: true, isAccordion: true }, { id: 'tags', label: 'タグ', type: 'tags', visible: true }]
         };
 
-        let state = { currentTab: 'works', layoutMode: localStorage.getItem('archive_layout') || 'normal', schemas: JSON.parse(localStorage.getItem('archive_schemas')) || defaultSchemas, data: JSON.parse(localStorage.getItem('archive_data')) || {works:[], chars:[], combi:[], couplings:[]}, activeTag: null, imgViewMode: 'edited' };
+        let state = { currentTab: 'works', layoutMode: localStorage.getItem('archive_layout') || 'normal', schemas: JSON.parse(localStorage.getItem('archive_schemas')) || defaultSchemas, data: JSON.parse(localStorage.getItem('archive_data')) || {works:[], chars:[], combi:[], couplings:[]}, activeTag: null, imgViewMode: 'edited' }
+        let currentDragHandlers = null;
 
         const compressImage = (f) => new Promise(r => { const rd = new FileReader(); rd.readAsDataURL(f); rd.onload = (e) => { const img = new Image(); img.src = e.target.result; img.onload = () => { const canvas = document.createElement('canvas'); let w = img.width, h = img.height, max = 1200; if (w > h) { if (w > max) { h *= max / w; w = max; } } else { if (h > max) { w *= max / h; h = max; } } canvas.width = w; canvas.height = h; canvas.getContext('2d').drawImage(img, 0, 0, w, h); r(canvas.toDataURL('image/jpeg', 0.8)); }; }; });
 
@@ -140,10 +141,17 @@
                         const isDef = (tx === 0 && ty === 0 && ts === 1);
                         headerHtml = `<div class="w-full ${hClass} overflow-hidden border-b border-pink-50 relative"><img src="${imgVal}" class="absolute w-full h-full ${isDef?'object-cover':'object-contain'}" style="transform: translate(${tx}%, ${ty}%) scale(${ts});"></div>`;
                     }
-                    if (item.ribbonId !== 'none') {
-                        const rField = schema.find(f => f.id === (item.ribbonId || schema.find(s=>s.isTitle).id));
-                        if (rField && item[rField.id]) ribbonHtml = `<div class="ribbon-label uppercase ${state.layoutMode==='compact'?'text-[7px] top-[10px] py-[2px] px-[10px]':'text-[9px] top-[15px] py-[4px] px-[14px]'}">${item[rField.id]}</div>`;
-                    }
+const titleField = schema.find(s => s.isTitle); // タイトルに設定されている項目を探す
+const targetFieldId = item.ribbonId === undefined ? (titleField ? titleField.id : null) : (item.ribbonId === 'none' ? null : item.ribbonId);
+
+if (targetFieldId) {
+    const rField = schema.find(f => f.id === targetFieldId);
+    if (rField && item[rField.id]) {
+        const sizeClass = state.layoutMode === 'compact' ? 'text-[7px] top-[10px] py-[2px] px-[10px]' : 'text-[9px] top-[15px] py-[4px] px-[14px]';
+        ribbonHtml = `<div class="ribbon-label uppercase ${sizeClass}">${item[rField.id]}</div>`;
+    }
+}
+
                 }
 
                 if (state.currentTab === 'combi') {
@@ -238,6 +246,18 @@
             content.innerHTML = imgHtml + fieldsHtml + addCharBtn + `<div class="py-6 flex justify-center"><button onclick="addDetailField(${index})" class="text-[10px] text-pink-300 font-bold uppercase tracking-widest">+ Add Field</button></div>` + noteHtml;
             document.querySelectorAll('textarea').forEach(t => autoGrow(t));
             if(state.imgViewMode === 'edited') initProfessionalDrag(index);
+　　　　　　　　  const deleteBtn = document.getElementById('header-delete-btn');
+    if (deleteBtn) {
+        deleteBtn.onclick = () => {
+            if (confirm('このデータを削除しますか？')) {
+                state.data[state.currentTab].splice(index, 1);
+                saveState();
+                closeDetail();
+            }
+        };
+    }
+
+
             document.getElementById('detail-view').classList.add('open');
             document.body.style.overflow = 'hidden';
         }
@@ -245,11 +265,64 @@
         // --- ロジック ---
         function addCharacterField(idx) { const s = state.schemas[state.currentTab]; const next = s.filter(f => f.id.startsWith('char')).length + 1; s.splice(s.length - 4, 0, { id: `char${next}`, label: `キャラ${next}`, type: 'text', visible: true }); saveState(); openDetail(idx); }
         function moveFieldItem(entryIdx, fieldIdx, dir) { const s = state.schemas[state.currentTab]; if (fieldIdx + dir < 0 || fieldIdx + dir >= s.length) return; [s[fieldIdx], s[fieldIdx + dir]] = [s[fieldIdx + dir], s[fieldIdx]]; saveState(); openDetail(entryIdx); render(); }
-        function initProfessionalDrag(idx) { const area = document.getElementById('crop-area'); const img = document.getElementById('crop-img'); if(!area || !img) return; let isDragging = false, sx, sy; let tx = state.data[state.currentTab][idx].tx || 0, ty = state.data[state.currentTab][idx].ty || 0; const s = (e) => { isDragging = true; const p = e.touches ? e.touches[0] : e; sx = p.clientX; sy = p.clientY; }; const m = (e) => { if(!isDragging) return; const p = e.touches ? e.touches[0] : e; tx += (p.clientX - sx) / area.offsetWidth * 100; ty += (p.clientY - sy) / area.offsetHeight * 100; img.style.transform = `translate(${tx}%, ${ty}%) scale(${state.data[state.currentTab][idx].ts || 1})`; sx = p.clientX; sy = p.clientY; }; const ed = () => { if(isDragging) { isDragging = false; updateDetailField(idx, 'tx', tx); updateDetailField(idx, 'ty', ty); } }; area.addEventListener('mousedown', s); area.addEventListener('touchstart', s); window.addEventListener('mousemove', m); window.addEventListener('touchmove', m, {passive: false}); window.addEventListener('mouseup', ed); window.addEventListener('touchend', ed); }
+        function initProfessionalDrag(idx) {
+    const area = document.getElementById('crop-area');
+    const img = document.getElementById('crop-img');
+    if(!area || !img) return;
+
+    let isDragging = false;
+    let sx, sy;
+    let tx = state.data[state.currentTab][idx].tx || 0;
+    let ty = state.data[state.currentTab][idx].ty || 0;
+
+    const start = (e) => {
+        isDragging = true;
+        const p = e.touches ? e.touches[0] : e;
+        sx = p.clientX; sy = p.clientY;
+    };
+    const move = (e) => {
+        if(!isDragging) return;
+        const p = e.touches ? e.touches[0] : e;
+        tx += (p.clientX - sx) / area.offsetWidth * 100;
+        ty += (p.clientY - sy) / area.offsetHeight * 100;
+        img.style.transform = `translate(${tx}%, ${ty}%) scale(${state.data[state.currentTab][idx].ts || 1})`;
+        sx = p.clientX; sy = p.clientY;
+    };
+    const end = () => {
+        if(isDragging) {
+            isDragging = false;
+            updateDetailField(idx, 'tx', tx);
+            updateDetailField(idx, 'ty', ty);
+        }
+    };
+
+    // リスナーを登録
+    area.addEventListener('mousedown', start);
+    area.addEventListener('touchstart', start);
+    window.addEventListener('mousemove', move);
+    window.addEventListener('touchmove', move, {passive: false});
+    window.addEventListener('mouseup', end);
+    window.addEventListener('touchend', end);
+
+    // 削除できるように保存しておく
+    currentDragHandlers = { move, end };
+}
         function updateZoom(idx, val) { state.data[state.currentTab][idx].ts = parseFloat(val); const img = document.getElementById('crop-img'); if(img) { img.style.objectFit = val == 1 ? 'cover' : 'contain'; img.style.transform = `translate(${state.data[state.currentTab][idx].tx || 0}%, ${state.data[state.currentTab][idx].ty || 0}%) scale(${val})`; } saveState(); }
         function saveState() { localStorage.setItem('archive_data', JSON.stringify(state.data)); localStorage.setItem('archive_schemas', JSON.stringify(state.schemas)); }
         function switchTab(t) { state.currentTab = t; document.querySelectorAll('button[id^="tab-"]').forEach(b => b.classList.remove('tab-active')); document.getElementById(`tab-${t}`).classList.add('tab-active'); render(); }
-        function closeDetail() { document.getElementById('detail-view').classList.remove('open'); document.body.style.overflow = ''; render(); }
+        function closeDetail() {
+    document.getElementById('detail-view').classList.remove('open');
+    document.body.style.overflow = '';
+                if (currentDragHandlers) {
+        window.removeEventListener('mousemove', currentDragHandlers.move);
+        window.removeEventListener('touchmove', currentDragHandlers.move);
+        window.removeEventListener('mouseup', currentDragHandlers.end);
+        window.removeEventListener('touchend', currentDragHandlers.end);
+        currentDragHandlers = null;
+    }
+    render();
+}
+
         function updateDetailField(idx, id, val) { state.data[state.currentTab][idx][id] = val; saveState(); if(document.getElementById('auto-save-status')){document.getElementById('auto-save-status').innerText = 'Saving...'; setTimeout(() => {if(document.getElementById('auto-save-status'))document.getElementById('auto-save-status').innerText = 'Saved';}, 800);}}
         async function updateDetailImage(idx, input) { if (input.files[0]) { const b64 = await compressImage(input.files[0]); updateDetailField(idx, state.schemas[state.currentTab].find(f => f.type === 'file').id, b64); openDetail(idx); } }
         function randomPickAnimated(btn) { btn.classList.add('dice-anim'); setTimeout(() => { btn.classList.remove('dice-anim'); openDetail(Math.floor(Math.random() * state.data[state.currentTab].length)); }, 400); }
@@ -259,8 +332,8 @@
         async function createShareLink() { showToast('Creating link...'); try { const res = await fetch('https://api.jsonstorage.net/v1/json', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: state.data, schemas: state.schemas }) }); if(!res.ok) throw new Error(); const r = await res.json(); const shareUrl = `${window.location.origin}${window.location.pathname}?id=${r.uri.split('/').pop()}`; await navigator.clipboard.writeText(shareUrl); alert("URL Copied!"); } catch (e) { alert("Error sharing."); } }
         function openSettings() { document.getElementById('settings-modal').classList.remove('hidden'); renderSettingsFields(); }
         function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-        function addDetailField(idx) { state.schemas[state.currentTab].push({ id: 'c'+Date.now(), label: '新項目', type: 'text', visible: true }); openDetail(idx); }
-        function renderSettingsFields() { const c = document.getElementById('settings-fields'); c.innerHTML = ''; state.schemas[state.currentTab].forEach((f, i) => { c.innerHTML += `<div class="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-2xl"><div class="flex flex-col gap-1"><button onclick="moveFieldSettings(${i}, -1)" class="text-[12px] text-pink-400 font-bold px-1">▲</button><button onclick="moveFieldSettings(${i}, 1)" class="text-[12px] text-pink-400 font-bold px-1">▼</button></div><input type="text" value="${f.label}" onchange="state.schemas[state.currentTab][${i}].label=this.value" class="text-xs p-2 flex-1 bg-white border-none rounded-lg"><button onclick="state.schemas[state.currentTab][${i}].visible=!state.schemas[state.currentTab][${i}].visible;renderSettingsFields()" class="toggle-btn ${f.visible?'toggle-on':'toggle-off'}">${f.visible?'ON':'OFF'}</button>${f.isTitle ? '' : `<button onclick="if(confirm('Delete?')){state.schemas[state.currentTab].splice(${i},1);renderSettingsFields()}" class="text-gray-300 font-bold px-2">×</button>`}</div>`; }); }
+        function addDetailField(idx) { state.schemas[state.currentTab].push({ id: 'c'+Date.now(), label: '新項目', type: 'text', visible: true }); saveState(); openDetail(idx); }
+        function renderSettingsFields() { const c = document.getElementById('settings-fields'; c.innerHTML = ''; state.schemas[state.currentTab].forEach((f, i) => { c.innerHTML += `<div class="flex items-center gap-3 mb-3 p-3 bg-gray-50 rounded-2xl"><div class="flex flex-col gap-1"><button onclick="moveFieldSettings(${i}, -1)" class="text-[12px] text-pink-400 font-bold px-1">▲</button><button onclick="moveFieldSettings(${i}, 1)" class="text-[12px] text-pink-400 font-bold px-1">▼</button></div><input type="text" value="${f.label}" onchange="state.schemas[state.currentTab][${i}].label=this.value" class="text-xs p-2 flex-1 bg-white border-none rounded-lg"><button onclick="state.schemas[state.currentTab][${i}].visible=!state.schemas[state.currentTab][${i}].visible;renderSettingsFields()" class="toggle-btn ${f.visible?'toggle-on':'toggle-off'}">${f.visible?'ON':'OFF'}</button>${f.isTitle ? '' : `<button onclick="if(confirm('Delete?')){state.schemas[state.currentTab].splice(${i},1);renderSettingsFields()}" class="text-gray-300 font-bold px-2">×</button>`}</div>`; }); }
         function moveFieldSettings(i, dir) { const s = state.schemas[state.currentTab]; if (i + dir < 0 || i + dir >= s.length) return; [s[i], s[i + dir]] = [s[i + dir], s[i]]; saveState(); renderSettingsFields(); render(); }
         function updateDatalists() { const wSet = new Set(), cSet = new Set(); Object.values(state.data).flat().forEach(d => { if(d.name) {if(state.data.works.includes(d)) wSet.add(d.name); else cSet.add(d.name);} if(d.work) wSet.add(d.work); if(d.members) d.members.split(',').forEach(m => cSet.add(m.trim())); }); document.getElementById('datalist-works').innerHTML = [...wSet].map(w => `<option value="${w}">`).join(''); document.getElementById('datalist-chars').innerHTML = [...cSet].map(c => `<option value="${c}">`).join(''); }
         function renderTagFilters() { const tagSet = new Set(); const tf = state.schemas[state.currentTab].find(f => f.type === 'tags'); state.data[state.currentTab].forEach(item => { if (tf && item[tf.id]) item[tf.id].split(',').forEach(t => tagSet.add(t.trim())); }); const fc = document.getElementById('filter-tags'); fc.innerHTML = `<span onclick="state.activeTag=null;render()" class="tag-chip ${!state.activeTag ? 'bg-pink-400 text-white' : 'bg-gray-100 text-gray-400'}">すべて</span>`; tagSet.forEach(tag => fc.innerHTML += `<span onclick="state.activeTag='${tag}';render()" class="tag-chip ${state.activeTag===tag?'bg-pink-400 text-white':'bg-white text-pink-400'}">${tag}</span>`); }
